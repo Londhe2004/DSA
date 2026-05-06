@@ -1,0 +1,81 @@
+#include<iostream>
+#include<vector>
+#include<omp.h>
+
+using namespace std;
+
+void parallel_dfs(int node, vector<int> graph[], bool visited[]){
+    bool first = false;
+    #pragma omp critical
+    {
+        if(!visited[node]){
+           first = true;
+           visited[node] = true;
+           cout << "Visited by thread " << omp_get_thread_num() << " : node " << node << endl;
+        }
+    }
+    if(!first){
+        return;
+    }
+    for(int adjNode: graph[node]){
+        #pragma omp task
+        parallel_dfs(adjNode, graph, visited);
+    }
+}
+
+void parallel_bfs(int start, int n, vector<int> graph[]){
+    bool visited[n] = {false};
+    vector<int> current, next;
+    visited[start] = true;
+    current.push_back(start);
+
+    while(!current.empty()){
+        #pragma omp parallel
+        {
+            #pragma omp for
+            for(int i = 0; i < current.size(); i++){
+                int node = current[i];
+                #pragma omp critical
+                cout << "Visited by thread " << omp_get_thread_num() << " : node " << node << endl;
+
+                for(int adjNode: graph[node]){
+                    #pragma omp critical
+                    {
+                        if (!visited[adjNode]) {
+                            visited[adjNode] = true;
+                            next.push_back(adjNode);
+                        }
+                    }
+                }
+            }
+        }
+        current = next;
+        next.clear();
+    }
+}
+
+int main(){
+    vector<int> graph[7];
+    graph[0] = {1, 2};
+    graph[1] = {3, 4};
+    graph[2] = {5, 6};
+    graph[3] = {};
+    graph[4] = {};
+    graph[5] = {};
+    graph[6] = {};
+    bool visited[7] = {false};
+
+    cout << "DFS: " << endl;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        parallel_dfs(0, graph, visited);
+    }
+
+    cout << endl;
+
+    cout << "BFS: " << endl;
+    parallel_bfs(0, 7, graph);
+
+    return 0;
+}
